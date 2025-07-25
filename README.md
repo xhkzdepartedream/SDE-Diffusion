@@ -15,7 +15,7 @@ This project provides a comprehensive and flexible PyTorch framework for buildin
 ## Project Structure
 
 ```
-E:/DL/Diffusion-Model/
+Diffusion-Model/
 ├───README.md
 ├───requirements.txt
 ├───utils.py
