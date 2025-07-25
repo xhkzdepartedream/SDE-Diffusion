@@ -1,0 +1,31 @@
+diffusion_pipeline:
+  target: diffusion.DiffusionPipeline.DiffusionPipeline
+  params:
+    model:
+      target: models.DiT.DiT  # 可替换为 diffusion.models.UNet
+      params:
+        input_size: 32
+        input_ch: 4
+        patch_size: 2
+        n_ch: 512
+        n_blocks: 12
+        num_heads: 8
+        pe: "rope"
+    scheduler:
+      target: diffusion.VPSDEScheduler.VPSDEScheduler
+      params: {}
+    n_steps: 1000
+
+training:
+  title: "unified_model_v1"
+  epochs: 100
+  batch_size: 128
+  lr: 1.0e-4
+  save_every: 50
+
+checkpoint:
+  load: false
+  path: "/path/to/your/checkpoint.pth"
+
+data:
+  path: "/data1/yangyanliang/data/latents.lmdb/"
