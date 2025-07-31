@@ -198,7 +198,7 @@ If you use this code in your research, please cite the original papers and this 
 @misc{sde-diffusion-repo,
   title={SDE-Diffusion: Advanced Continuous-Time Diffusion Models},
   author={Your Name},
-  year={2024},
+  year={2025},
   url={https://github.com/your-username/SDE-Diffusion}
 }
 
