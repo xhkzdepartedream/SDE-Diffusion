@@ -1,7 +1,6 @@
-import torch
-import torch.nn as nn
-import math
+from modules.embedders import *
 from timm.layers import DropPath
+from utils import scale_to_unit_range
 
 
 def modulate(x: torch.Tensor, scale: torch.Tensor, shift: torch.Tensor):
@@ -69,46 +68,6 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class TimestepEmbedder(nn.Module):
-    """
-    Embeds scalar timesteps into vector representations.
-    """
-
-    def __init__(self, n_ch, frequency_embedding_size = 256):
-        super().__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(frequency_embedding_size, n_ch, bias = True),
-            nn.SiLU(),
-            nn.Linear(n_ch, n_ch, bias = True),
-        )
-        self.frequency_embedding_size = frequency_embedding_size
-
-    @staticmethod
-    def timestep_embedding(t, dim, max_period = 10000):
-        """
-        Create sinusoidal timestep embeddings.
-        :param t: a 1-D Tensor of N indices, one per batch element.
-                          These may be fractional.
-        :param dim: the dimension of the output.
-        :param max_period: controls the minimum frequency of the embeddings.
-        :return: an (N, D) Tensor of positional embeddings.
-        """
-        half = dim // 2
-        freqs = torch.exp(
-            -math.log(max_period) * torch.arange(start = 0, end = half, dtype = torch.float32) / half
-        ).to(device = t.device)
-        args = t[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim = -1)
-        if dim % 2:
-            embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim = -1)
-        return embedding
-
-    def forward(self, t):
-        t_freq = self.timestep_embedding(t, self.frequency_embedding_size)
-        t_emb = self.mlp(t_freq)
-        return t_emb
-
-
 class DiTBlock(nn.Module):
     def __init__(self, n_ch: int, heads: int, mlp_ratio: int = 4,
                  attn_dropout: float = 0.0, drop_path_rate: float = 0.0):
@@ -162,8 +121,9 @@ class FinalLayer(nn.Module):
 
 
 class DiT(nn.Module):
-    def __init__(self, input_size: int, patch_size: int, input_ch: int, n_ch: int, n_blocks: int, num_heads: int = 16,
-                 mlp_ratio: int = 4, learn_sigma: bool = False, pe: str = "abs", attn_dropout = 0.0, mlp_dropout = 0.0):
+    def __init__(self, input_size: int, patch_size: int, input_ch: int, n_ch: int, has_cond: bool, n_blocks: int,
+                 num_heads: int = 16, mlp_ratio: int = 4, learn_sigma: bool = False, pe: str = "abs",
+                 attn_dropout = 0.0, mlp_dropout = 0.0, **kwargs):
         super().__init__()
         self.learn_sigma = learn_sigma
         self.input_ch = input_ch
@@ -171,10 +131,18 @@ class DiT(nn.Module):
         self.output_ch = input_ch * 2 if learn_sigma else input_ch
         self.patch_size = patch_size
         self.num_heads = num_heads
+        self.has_cond = has_cond
         self.num_patches = (input_size // patch_size) ** 2
 
         self.x_embedder = PatchEmbed(patch_size, input_ch, n_ch)
         self.t_embedder = TimestepEmbedder(n_ch)
+
+        if has_cond:
+            cls_num = kwargs.get('cls_num', 10)
+            lab_emb_dim = n_ch
+            drop_lab = kwargs.get('drop_lab', 0.1)
+            self.l_embedder = CategoricalLabelEmbedder(cls_num, lab_emb_dim, drop_lab)
+
         if pe == "abs":
             self.pos_embed = PositionalEncoding(self.num_patches, n_ch)
         elif pe == "rope":
@@ -196,16 +164,10 @@ class DiT(nn.Module):
 
         self.apply(_basic_init)
 
-        # Initialize pos_embed by sin-cos embedding:
-        # nn.init.trunc_normal_(self.pos_embed, std = 0.02)
-
         # Initialize patch_embed like nn.Linear (instead of nn.Conv2d):
         w = self.x_embedder.proj.weight.data
         nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
         nn.init.constant_(self.x_embedder.proj.bias, 0)
-
-        # Initialize label embedding table:
-        # nn.init.normal_(self.y_embedder.embedding_table.weight, std=0.02)
 
         # Initialize timestep embedding MLP:
         nn.init.normal_(self.t_embedder.mlp[0].weight, std = 0.02)
@@ -235,12 +197,54 @@ class DiT(nn.Module):
         imgs = x.reshape([x.shape[0], c, h * p, w * p])  # (N, C, H, W)
         return imgs
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor):
+    def _forward_impl(self, x: torch.Tensor, t: torch.Tensor, use_cfg: bool, labels: Optional[torch.Tensor] = None):
+        batch_size = x.shape[0]
+        half = batch_size // 2
         x = self.x_embedder(x)
         x = self.pos_embed(x)
         t = self.t_embedder(t)
+        # 有条件的DiT
+        if self.has_cond and labels is not None:
+            # 训练时，使用随机丢弃
+            if not use_cfg:
+                l = self.l_embedder(labels, use_drop = True)
+            # 生成时
+            else:
+                l_1 = self.l_embedder(labels[:half], use_drop = False)
+                force_drop_ids = torch.zeros(half, dtype = torch.bool, device = x.device)
+                l_2 = self.l_embedder(None, use_drop = False, force_drop_ids = force_drop_ids)
+                l = torch.cat([l_1, l_2], dim = 0)
+            c = l + t
+        # 无条件的DiT
+        else:
+            c = t
+
         for block in self.blocks:
-            x = block(x, t)
-        x = self.final_layer(x, t)
+            x = block(x, c)
+
+        x = self.final_layer(x, c)
         x = self.unpatchify(x)  # (N, out_channels, H, W)
         return x
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor, l: Optional[torch.Tensor] = None,
+                cfg_scale: Optional[float] = None):
+        if cfg_scale is not None and cfg_scale > 1.0 and self.has_cond and l is not None:
+            x_combined = torch.cat([x, x], dim = 0)
+            t_combined = torch.cat([t, t], dim = 0)
+            l_cond = torch.cat([l, l], dim = 0)
+            output_combined = self._forward_impl(x_combined, t_combined, True, l_cond)
+            output_cond, output_uncond = output_combined.chunk(2, dim = 0)
+            output = output_uncond + cfg_scale * (output_cond - output_uncond)
+
+            return output
+        else:
+            return self._forward_impl(x, t, False, l)
+
+
+if __name__ == '__main__':
+    from utils import print_model_parameters, instantiate_from_config
+    from omegaconf import OmegaConf
+
+    conf = OmegaConf.load('../configs/vpsde_celebahq.yaml')
+    model = instantiate_from_config(conf.diffusion_pipeline.params.model)
+    print_model_parameters(model)

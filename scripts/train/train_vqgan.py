@@ -1,7 +1,7 @@
 import os
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
-from data.init_dataset import *
+from data_processing.init_dataset import *
 from AutoEncoder import *
 from torch.nn.parallel import DistributedDataParallel as DDP
 
@@ -12,7 +12,7 @@ def main():
     image_dir1 = '/data1/yangyanliang/.cache/kagglehub/datasets/badasstechie/celebahq-resized-256x256/versions/1/celeba_hq_256/'
 
     # 加载数据集
-    dataset1 = CelebaHQDataset(image_dir1, transform = transform_celeba)
+    dataset1 = CelebaHQDataset(image_dir1, transform = transform_unified)
 
     dataset1 = torch.utils.data.Subset(dataset1, range(10000))
 
@@ -28,6 +28,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-    REMOTE_FLAG_PATH = "/data1/yangyanliang/Diffusion-Model/scripts/done.txt"
+    REMOTE_FLAG_PATH = "./scripts/done.txt"
     with open(REMOTE_FLAG_PATH, 'w') as f:
         f.write('done.')

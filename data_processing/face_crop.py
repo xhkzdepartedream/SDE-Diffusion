@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 import numpy as np
 from utils import init_distributed  # 你已有的 DDP 初始化函数
-from data.init_dataset import CelebaHQDataset
+from data_processing.init_dataset import CelebaHQDataset
 from modules.bisnet import BiSeNet  # 来自 face-parsing.PyTorch
 import cv2
 
@@ -69,7 +69,7 @@ def main():
     device, local_rank = init_distributed()
 
     input_dir = '/data1/yangyanliang/.cache/kagglehub/datasets/badasstechie/celebahq-resized-256x256/versions/1/celeba_hq_256/'
-    output_dir = '/data1/yangyanliang/data/cropped_figure/'
+    output_dir = './data/cropped_figure/'
 
     transform = transforms.Compose([
         transforms.Resize((512, 512)),

@@ -3,6 +3,7 @@ from .bisnet import *
 from .perceptual_module import *
 from .vae_modules import *
 from .vfloss_module import *
+from .embedders import *
 
 # 尝试导入autoencoder_kl模块
 try:

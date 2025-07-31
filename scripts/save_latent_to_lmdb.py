@@ -3,7 +3,7 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
 import lmdb
 import time
-from data.init_dataset import CelebaHQDataset, transform_celeba
+from data_processing.init_dataset import CelebaHQDataset, transform_unified
 import torch
 from diffusers import AutoencoderKL
 import shutil
@@ -17,7 +17,7 @@ from modules import *
 
 
 def get_dataset_and_sampler(image_dir):
-    dataset = CelebaHQDataset(image_dir, transform = transform_celeba)
+    dataset = CelebaHQDataset(image_dir, transform = transform_unified)
     sampler = DistributedSampler(dataset, shuffle = False)
     return dataset, sampler
 
@@ -74,12 +74,12 @@ def process(rank):
     model = DDP(model, device_ids = [local_rank])
     model.eval()
 
-    image_dir = '/data1/yangyanliang/data/cropped_figure/'
+    image_dir = './data/cropped_figure/'
     dataset, sampler = get_dataset_and_sampler(image_dir)
     dataloader = DataLoader(dataset, batch_size = 64, sampler = sampler, num_workers = 4, pin_memory = True)
 
     map_size = 60 * 1024 * 1024 * 1024
-    lmdb_path = f"../data/latents_rank{local_rank}.lmdb"
+    lmdb_path = f"../data_processing/latents_rank{local_rank}.lmdb"
 
     # 每个 rank 清除自己的 LMDB
     if os.path.exists(lmdb_path):
@@ -175,9 +175,9 @@ if __name__ == '__main__':
         print(f"[Rank {local_rank}] Cleanup completed.")
 
     if local_rank == 0:
-        merge_lmdbs(source_dir = "../data", target_path = "../data/latents.lmdb", num_ranks = world_size)
+        merge_lmdbs(source_dir = "../data_processing", target_path = "../data_processing/latents.lmdb", num_ranks = world_size)
         for r in range(world_size):
-            lmdb_path = f"../data/latents_rank{r}.lmdb"
+            lmdb_path = f"../data_processing/latents_rank{r}.lmdb"
             if os.path.exists(lmdb_path):
                 shutil.rmtree(lmdb_path)
                 print(f"[Rank 0] Deleted temporary LMDB: {lmdb_path}")

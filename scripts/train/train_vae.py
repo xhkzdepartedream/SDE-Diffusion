@@ -8,7 +8,7 @@ device, local_rank = init_distributed()
 
 
 def main():
-    dir = "/data1/yangyanliang/Diffusion-Model/data/cars_train/"
+    dir = "./data/cars_train/"
     train_dataset = CustomCarsDataset(dir, transform = transform_vae)
 
     vae_launcher = vae_trainer(train_dataset, 'u', batch_size = 64, lr = 1e-4, n_epoch = 100, lambda_ = 1,

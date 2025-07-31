@@ -11,38 +11,38 @@ diffusion_pipeline:
         n_blocks: 8
         num_heads: 8
         pe: "rope"
+        has_cond: false
     scheduler:
-      target: diffusion.VESDEScheduler.VESDEScheduler
+      target: diffusion.VPSDEScheduler.VPSDEScheduler
       params:
-        sigma_min: 0.01
-        sigma_max: 378.0
+        beta_min: 0.01
+        beta_max: 20.0
         prediction_type: 's'
 
 training:
-  title: "vesde"
-  epochs: 1500
+  title: "vpsde_ver3"
+  epochs: 1000
   batch_size: 128
   lr: 1.0e-4
   save_every: 100
 
 checkpoint:
-  load: true
-  path: "/data1/yangyanliang/Diffusion-Model/vesde_1000.pth"
+  load: false
+  path: "/data1/yangyanliang/Diffusion-Model/vpsde_500.pth"
 
 data:
   path: "/data1/yangyanliang/data/latents.lmdb/"
 
 # --- Sampling Arguments ---
 sampling:
-  shape: [64, 4, 32, 32]
-  n_steps: 2000
-  corrector_steps: 1
-  target_snr: 0.03
+  shape: [8, 4, 32, 32]
+  n_steps: 1000
+  corrector_steps: 2
+  target_snr: 0.05
   sampler_type: 'sde'
-  output_dir: "./samples"
 
 
 # --- Checkpoint Paths for Sampling ---
 checkpoints:
-  pipeline_path: "/data1/yangyanliang/Diffusion-Model/vesde_1200.pth"
-  vae_path: "/data1/yangyanliang/Diffusion-Model/autoencoderkl_finetuned_celeba_hq2_5/"
+  pipeline_path: "/data1/yangyanliang/Diffusion-Model/vpsde_score_1000.pth"
+  vae_path: "path/to/your/autoencoderkl/"

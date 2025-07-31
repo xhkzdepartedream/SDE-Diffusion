@@ -1,0 +1,48 @@
+diffusion_pipeline:
+  target: diffusion.DiffusionPipeline.DiffusionPipeline
+  params:
+    model:
+      target: models.DiT.DiT
+      params:
+        input_size: 32
+        input_ch: 3
+        patch_size: 2
+        n_ch: 512
+        n_blocks: 8
+        num_heads: 8
+        pe: "rope"
+        has_cond: true
+        cls_num: 10
+        drop_lab: 0.2
+    scheduler:
+      target: diffusion.VPSDEScheduler.VPSDEScheduler
+      params:
+        beta_min: 0.1
+        beta_max: 20.0
+        prediction_type: 'eps'
+
+training:
+  title: "vpsde_cifar10"
+  epochs: 1000
+  batch_size: 128
+  lr: 1.0e-4
+  save_every: 100
+
+checkpoint:
+  load: false
+  path: "/data1/yangyanliang/Diffusion-Model/vpsde_cifar10_200.pth"
+
+# --- Sampling Arguments ---
+sampling:
+  shape: [ 10, 3, 32, 32 ]
+  n_steps: 500
+  sampler_type: 'sde'
+  labels: [ 0,1,2,3,4,5,6,7,8,9 ]
+  # labels: [0,0,0,0,0,0,0,0,0,0]
+  cfg_scale: 7.5
+  corrector_steps: 1
+  target_snr: 0.16
+
+
+checkpoints:
+  pipeline_path: "path/to/your/vpsde_cifar10_1000.pth"

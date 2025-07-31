@@ -11,12 +11,13 @@ from utils import init_distributed
 device, local_rank = init_distributed()
 
 
-class UnifiedTrainer:
+class Trainer:
     """
     A unified, modular trainer for diffusion models, adapted to the project's style.
-    It handles the training loop, distributed data parallel setup, gradient scaling,
+    It handles the training loop, distributed data_processing parallel setup, gradient scaling,
     and checkpointing in a generic way.
     """
+
     def __init__(
             self,
             pipeline: DiffusionPipeline,
@@ -33,6 +34,7 @@ class UnifiedTrainer:
         self.batch_size = batch_size
         self.title = title
         self.losses = []
+        self.model_conditional = pipeline.model.has_cond if hasattr(pipeline.model, 'has_cond') else False
         self.start_epoch = 1
 
         self.datasampler = DistributedSampler(dataset)
@@ -86,19 +88,38 @@ class UnifiedTrainer:
         print(f"[INFO][RANK {rank}] Loaded checkpoint from epoch {checkpoint['epoch']}.")
 
     def train(self, epochs: int, save_every: int = 5):
-        """Unified training loop."""
+        if self.model_conditional:
+            self._conditional_train(epochs, save_every)
+        else:
+            self._unconditional_train(epochs, save_every)
+
+    def _conditional_train(self, epochs: int, save_every: int = 20):
         for epoch in range(self.start_epoch, epochs + 1):
             self.datasampler.set_epoch(epoch)
             total_loss = 0
             pbar = tqdm(self.dataloader, desc = f"Epoch {epoch}", disable = (self.local_rank != 0))
 
-            for batch in pbar:
+            for batch, label in pbar:
                 x0 = batch.to(self.device)
 
                 self.optimizer.zero_grad()
 
                 with torch.amp.autocast('cuda'):
-                    loss = self.pipeline.train_step(x0)
+                    loss = self.pipeline.train_step(x0, label)
+
+                # Additional NaN detection after loss computation
+                if torch.isnan(loss):
+                    print(f"NaN loss detected at epoch {epoch}")
+                    print(f"Current learning rate: {self.optimizer.param_groups[0]['lr']}")
+                    print(f"Scaler scale: {self.scaler.get_scale()}")
+                    # Check model parameters for NaN
+                    for name, param in self.pipeline.model.named_parameters():
+                        if torch.any(torch.isnan(param)):
+                            print(f"NaN in parameter: {name}")
+                        if param.grad is not None and torch.any(torch.isnan(param.grad)):
+                            print(f"NaN in gradient: {name}")
+                    raise RuntimeError(f"NaN loss at epoch {epoch}")
+
 
                 self.scaler.scale(loss).backward()
                 torch.nn.utils.clip_grad_norm_(self.pipeline.model.parameters(), max_norm = 1.0)
@@ -119,4 +140,52 @@ class UnifiedTrainer:
                 self._save_checkpoint(epoch)
 
         if self.local_rank == 0:
-            print("Training finished.")
+            print("[INFO] Training finished.")
+
+    def _unconditional_train(self, epochs: int, save_every: int = 5):
+        for epoch in range(self.start_epoch, epochs + 1):
+            self.datasampler.set_epoch(epoch)
+            total_loss = 0
+            pbar = tqdm(self.dataloader, desc = f"Epoch {epoch}", disable = (self.local_rank != 0))
+
+            for batch in pbar:
+                x0 = batch.to(self.device)
+
+                self.optimizer.zero_grad()
+
+                with torch.amp.autocast('cuda'):
+                    loss = self.pipeline.train_step(x0)
+
+                # Additional NaN detection after loss computation
+                if torch.isnan(loss):
+                    print(f"NaN loss detected at epoch {epoch}")
+                    print(f"Current learning rate: {self.optimizer.param_groups[0]['lr']}")
+                    print(f"Scaler scale: {self.scaler.get_scale()}")
+                    # Check model parameters for NaN
+                    for name, param in self.pipeline.model.named_parameters():
+                        if torch.any(torch.isnan(param)):
+                            print(f"NaN in parameter: {name}")
+                        if param.grad is not None and torch.any(torch.isnan(param.grad)):
+                            print(f"NaN in gradient: {name}")
+                    raise RuntimeError(f"NaN loss at epoch {epoch}")
+
+                self.scaler.scale(loss).backward()
+                torch.nn.utils.clip_grad_norm_(self.pipeline.model.parameters(), max_norm = 1.0)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.ema.update()
+                self.scheduler.step(epoch + len(self.losses) / len(self.dataloader))
+                total_loss += loss.item()
+
+                if self.local_rank == 0:
+                    pbar.set_postfix(loss = loss.item())
+
+            self.losses.append(total_loss)
+            if self.local_rank == 0:
+                print(f"Epoch {epoch} | Loss: {total_loss:.4f}")
+
+            if epoch % save_every == 0:
+                self._save_checkpoint(epoch)
+
+        if self.local_rank == 0:
+            print("[INFO] Training finished.")

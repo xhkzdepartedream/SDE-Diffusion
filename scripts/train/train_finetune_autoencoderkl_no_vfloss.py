@@ -3,7 +3,7 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
 from trainer.AutoencoderKL_trainer_no_vfloss import AutoencoderKL_trainer_no_vfloss
 from utils import init_distributed
-from data.init_dataset import CelebaHQDataset, transform_celeba
+from data_processing.init_dataset import CelebaHQDataset, transform_unified
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 device, local_rank = init_distributed()
@@ -13,10 +13,10 @@ def main():
     # Define your dataset directory and transformation
     # Make sure to replace this with your actual CELEBA-HQ dataset path
     dir = '/data1/yangyanliang/.cache/kagglehub/datasets/badasstechie/celebahq-resized-256x256/versions/1/celeba_hq_256/'
-    train_dataset = CelebaHQDataset(dir, transform = transform_celeba)
+    train_dataset = CelebaHQDataset(dir, transform = transform_unified)
     # Specify the pretrained model to fine-tune
     # You can use a local path or a Hugging Face model ID
-    pretrained_model_name_or_path = "/data1/yangyanliang/Diffusion-Model/autoencoderkl_success2.pth"
+    pretrained_model_name_or_path = "path/to/your/autoencoderkl_success2.pth"
 
     # Initialize the trainer
     autoencoderkl_launcher = AutoencoderKL_trainer_no_vfloss(

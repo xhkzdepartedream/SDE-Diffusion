@@ -65,13 +65,13 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     # 从 LMDB 加载 latent
-    lmdb_path = '/data1/yangyanliang/data/latents.lmdb/'  # 使用配置文件中的路径
+    lmdb_path = './data/latents.lmdb/'  # 使用配置文件中的路径
     dataset = LatentDataset(lmdb_path)
     dataloader = DataLoader(dataset, batch_size=64, shuffle=False)
 
     # 提取 latent
     # 注意：我们没有标签，所以 labels=None
-    latents = extract_latents_from_lmdb(dataloader, device=device, max_batches=512) # Increase max_batches to load more data
+    latents = extract_latents_from_lmdb(dataloader, device=device, max_batches=512) # Increase max_batches to load more data_processing
 
     # 可视化 PCA / t-SNE
     visualize_latents(latents, labels=None, method='pca', title='PCA of Latent Space')

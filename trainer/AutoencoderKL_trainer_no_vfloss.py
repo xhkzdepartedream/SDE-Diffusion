@@ -10,7 +10,7 @@ from utils import load_model_from_checkpoint
 from diffusers import AutoencoderKL
 
 from utils import init_distributed
-from data.init_dataset import *
+from data_processing.init_dataset import *
 from modules.perceptual_module import PerceptualModule
 
 device, local_rank = init_distributed()

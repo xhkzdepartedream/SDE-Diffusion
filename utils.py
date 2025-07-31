@@ -1,10 +1,11 @@
 import matplotlib.pyplot as plt
 import torch
 import os
+import logging
 import numpy as np
 from tqdm import tqdm
 from torchvision.transforms.functional import to_pil_image
-from data.init_dataset import CelebaHQDataset, transform_celeba
+from data_processing.init_dataset import CelebaHQDataset, transform_unified
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
 import torchvision.transforms.functional as TF
@@ -66,6 +67,28 @@ def instantiate_from_config(config):
 
     return get_obj_from_str(config["target"])(**config.get("params", dict()))
 
+def setup_logger(log_dir: str, name: str = "train", level=logging.INFO) -> logging.Logger:
+    os.makedirs(log_dir, exist_ok=True)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.propagate = False
+
+    log_path = os.path.join(log_dir, f"{name}.log")
+
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(level)
+    file_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_format)
+    logger.addHandler(file_handler)
+
+    # 控制台输出
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_format = logging.Formatter('%(levelname)s - %(message)s')
+    console_handler.setFormatter(console_format)
+    logger.addHandler(console_handler)
+
+    return logger
 
 
 @torch.no_grad()
@@ -94,7 +117,7 @@ def show_reconstructions(model, images=None, image_dir=None, num_images=8, devic
             images = images[:num_images]
     elif image_dir is not None:
         # Load images from directory
-        dataset = CelebaHQDataset(image_dir, transform=transform_celeba)
+        dataset = CelebaHQDataset(image_dir, transform=transform_unified)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=num_images, shuffle=True)
         images, _ = next(iter(dataloader))
         images = images.to(device)
@@ -273,7 +296,7 @@ def load_model_from_checkpoint(checkpoint_path, model_type: str, device, model_i
             else:
                 print("[INFO] No 'config' or 'model_instance' found. Creating a default AutoencoderKL.")
                 # 使用 "stabilityai/sd-vae-ft-mse" 作为基础模型
-                model = AutoencoderKL.from_pretrained("/data1/yangyanliang/checkpoints/autoencoderkl/")
+                model = AutoencoderKL.from_pretrained("path/to/your/autoencoderkl/")
                 # 尝试从 checkpoint 中获取 state_dict
                 if isinstance(checkpoint, dict):
                     loaded_state_dict = checkpoint.get('vae_state_dict', checkpoint.get('state_dict', checkpoint))
@@ -318,14 +341,47 @@ def load_model_from_checkpoint(checkpoint_path, model_type: str, device, model_i
         model.to(device)
         return model
 
+def scale_to_unit_range(x: torch.Tensor, min_val: float = -1.0, max_val: float = 1.0):
+    x_min = x.amin(dim=(1, 2, 3), keepdim=True)
+    x_max = x.amax(dim=(1, 2, 3), keepdim=True)
+    # 防止除以0
+    scale = (x_max - x_min).clamp(min=1e-5)
+    x_scaled = (x - x_min) / scale  # [0,1]
+    return x_scaled * (max_val - min_val) + min_val  # [-1,1]
+
+
 def show_tensor_image(image: torch.Tensor):
     reverse_transforms = transforms.Compose([
         transforms.Lambda(lambda t: (t + 1) / 2),  # [-1,1] → [0,1]
-        transforms.Lambda(lambda t: t.clamp(0, 1)),  # 防止超出 [0,1]
-        transforms.Lambda(lambda t: t.permute(1, 2, 0)),  # CHW → HWC
-        transforms.Lambda(lambda t: (t.cpu() * 255).numpy().astype(np.uint8)),  # → uint8
+        transforms.Lambda(lambda t: t.clamp(0, 1)),  # 限制在 [0,1]
     ])
     image = reverse_transforms(image)
-    plt.imshow(image)
-    plt.axis("off")
+
+
+    if image.ndim == 3 and image.shape[0] == 1:
+        # 单通道灰度图像
+        image = image.squeeze(0)  # [1,H,W] -> [H,W]
+        image = (image.cpu().numpy() * 255).astype(np.uint8)
+
+        fig = plt.figure(figsize=(image.shape[1] / 100, image.shape[0] / 100), dpi=100)
+        plt.imshow(image, cmap='gray', vmin=0, vmax=255)
+    elif image.ndim == 3 and image.shape[0] == 3:
+        # RGB图像
+        image = image.permute(1, 2, 0)  # [C,H,W] -> [H,W,C]
+        image = (image.cpu().numpy() * 255).astype(np.uint8)
+
+        fig = plt.figure(figsize=(image.shape[1] / 100, image.shape[0] / 100), dpi=100)
+        plt.imshow(image)
+    else:
+        raise ValueError(f"Unsupported image shape: {image.shape}")
+
+    plt.axis('off')
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.show()
+
+
+def print_model_parameters(model: torch.nn.Module):
+    total = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"总参数量: {total:,} ({total / 1e6:.2f}M)")
+    print(f"可训练参数量: {trainable:,} ({trainable / 1e6:.2f}M)")

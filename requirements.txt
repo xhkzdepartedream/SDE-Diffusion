@@ -4,3 +4,13 @@ numpy
 tqdm
 PyYAML
 matplotlib
+omegaconf
+lmdb
+Pillow
+diffusers
+torch-ema
+timm
+scikit-learn
+torch-fidelity
+lpips
+kagglehub

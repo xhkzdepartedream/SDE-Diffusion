@@ -80,4 +80,4 @@ def main(model_type,checkpoint_path):
 
 
 if __name__ == '__main__':
-    main(model_type = 'autoencoderkl',checkpoint_path = "/data1/yangyanliang/Diffusion-Model/autoencoderkl_finetuned_celeba_hq_vf_40.pth")
+    main(model_type = 'autoencoderkl',checkpoint_path = "path/to/your/autoencoderkl_finetuned.pth")

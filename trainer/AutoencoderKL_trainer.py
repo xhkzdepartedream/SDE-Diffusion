@@ -12,7 +12,7 @@ from diffusers import AutoencoderKL
 from itertools import chain
 
 from utils import init_distributed
-from data.init_dataset import *  # Assuming init_dataset contains necessary dataset classes and transforms
+from data_processing.init_dataset import *  # Assuming init_dataset contains necessary dataset classes and transforms
 from modules.perceptual_module import PerceptualModule
 from modules.vfloss_module import VFloss_module
 

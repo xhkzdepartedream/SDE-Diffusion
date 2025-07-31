@@ -2,7 +2,7 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
 import lmdb
 import time
-from data.init_dataset import CelebaHQDataset, transform_celeba
+from data_processing.init_dataset import CelebaHQDataset, transform_unified
 from diffusers import AutoencoderKL
 import shutil
 import torch
@@ -15,7 +15,7 @@ from utils import init_distributed,load_model_from_checkpoint
 
 
 def get_dataset_and_sampler(image_dir):
-    dataset = CelebaHQDataset(image_dir, transform = transform_celeba)
+    dataset = CelebaHQDataset(image_dir, transform = transform_unified)
     sampler = DistributedSampler(dataset, shuffle = False)
     return dataset, sampler
 
@@ -196,7 +196,7 @@ if __name__ == '__main__':
         device = device
     )
     src_dict = '/data1/yangyanliang/.cache/kagglehub/datasets/badasstechie/celebahq-resized-256x256/versions/1/celeba_hq_256/'
-    dst_dict = '/data1/yangyanliang/data/'
+    dst_dict = './data/'
     save_latents_to_lmdb(
         model=loaded_model,
         image_dir=src_dict,

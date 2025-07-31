@@ -2,15 +2,15 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
 from omegaconf import OmegaConf
 from diffusion.DiffusionPipeline import DiffusionPipeline
-from trainer.UnifiedTrainer import UnifiedTrainer
+from trainer.Trainer import Trainer
 from utils import init_distributed, instantiate_from_config
-from data.init_dataset import LatentDataset
+from data_processing.init_dataset import LatentDataset
 
 
 def main():
     # 1. Load configuration
     cli_conf = OmegaConf.from_cli()
-    default_config_path = cli_conf.get("config", "./configs/vesde_config.yaml")
+    default_config_path = cli_conf.get("config", "./configs/vpsde_celebahq.yaml")
     yaml_conf = OmegaConf.load(default_config_path)
     conf = OmegaConf.merge(yaml_conf, cli_conf)
 
@@ -20,7 +20,7 @@ def main():
 
     dataset = LatentDataset(conf.data.path)
 
-    trainer = UnifiedTrainer(
+    trainer = Trainer(
         pipeline = diffusion_pipeline,
         dataset = dataset,
         title = conf.training.title,

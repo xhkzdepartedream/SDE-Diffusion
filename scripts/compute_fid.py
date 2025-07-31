@@ -1,8 +1,8 @@
 from torch_fidelity import calculate_metrics
 
 metrics = calculate_metrics(
-    input1='/data1/yangyanliang/.cache/kagglehub/datasets/badasstechie/celebahq-resized-256x256/versions/1/celeba_hq_256/',
-    input2='../data/output',
+    input1='path/to/your/real_images/',
+    input2='../data_processing/output',
     cuda=True,
     fid=True,
     verbose=True,

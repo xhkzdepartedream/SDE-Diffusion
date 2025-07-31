@@ -27,15 +27,33 @@ class NoiseScheduler(abc.ABC):
         if self.prediction_type == 'eps':
             target = noise
         elif self.prediction_type == 's':
-            target = -noise / (std.view(-1, 1, 1, 1) + 1e-8)
+            std_expanded = std.view(-1, 1, 1, 1)
+            target = -noise / (std_expanded + 1e-6)
+
+            # Check for extreme values in target
+            if torch.any(torch.abs(target) > 1e6):
+                print("Extreme values in score target:")
+                print("std min/max:", std.min().item(), std.max().item())
+                print("target min/max:", target.min().item(), target.max().item())
+                print("t values:", t)
         else:
             raise ValueError(f"Unknown prediction_type: {self.prediction_type}")
+
+        # Final NaN check
+        if torch.any(torch.isnan(xt)) or torch.any(torch.isnan(target)):
+            print("NaN in forward_step output:")
+            print("xt has NaN:", torch.any(torch.isnan(xt)))
+            print("target has NaN:", torch.any(torch.isnan(target)))
+            print("mean has NaN:", torch.any(torch.isnan(mean)))
+            print("std has NaN:", torch.any(torch.isnan(std)))
+            raise RuntimeError("NaN in forward_step")
 
         return xt, target
 
     def get_loss_weight(self, t: torch.Tensor):
         _, g_t = self.sde(torch.zeros(1, device=t.device), t)
-        return g_t.view(-1) ** 2
+        loss_weight = 1.0 / (g_t ** 2 + 1e-5)
+        return loss_weight
 
     def _get_predicted_score(self, model_output: torch.Tensor, t: torch.Tensor, xt: torch.Tensor) -> torch.Tensor:
         """Helper function to compute the predicted score from the model output."""
@@ -43,7 +61,7 @@ class NoiseScheduler(abc.ABC):
         std_t = std_t.view(-1, 1, 1, 1)
 
         if self.prediction_type == 'eps':
-            predicted_score = -model_output / (std_t + 1e-8)
+            predicted_score = -model_output / (std_t + 1e-12)
         elif self.prediction_type == 's':
             predicted_score = model_output
         else:
