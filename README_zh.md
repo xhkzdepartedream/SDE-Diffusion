@@ -197,7 +197,7 @@ python scripts/visualize_latent_space.py --checkpoint path/to/checkpoint.pth
 @misc{sde-diffusion-repo,
   title={SDE-Diffusion: Advanced Continuous-Time Diffusion Models},
   author={Your Name},
-  year={2024},
+  year={2025},
   url={https://github.com/your-username/SDE-Diffusion}
 }
 
