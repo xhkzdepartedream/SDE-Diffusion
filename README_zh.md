@@ -91,6 +91,8 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda
 ```bash
 python scripts/train/train_celebahq.py --config configs/vpsde_celebahq.yaml
 ```
+或者在这里下载已训练的模型:
+[DOWNLOWD the trained model](https://drive.google.com/file/d/1atcxSECT42xz963ZBLbAkGhjUAIjXiQn/view?usp=drive_link)
 
 ### 3. 生成样本
 
