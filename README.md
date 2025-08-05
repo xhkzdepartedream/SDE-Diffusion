@@ -93,7 +93,7 @@ Select from pre-configured setups in the `configs/` directory:
 python scripts/train/train_celebahq.py --config configs/vpsde_celebahq.yaml
 ```
 Or DOWNLOWD our trained model here:
-[DOWNLOWD the trained model](https://drive.google.com/file/d/1atcxSECT42xz963ZBLbAkGhjUAIjXiQn/view?usp=drive_link)
+[DOWNLOWD the trained model](https://drive.google.com/file/d/1d9ulaepOYhsWFEmpe0XaqxsvXjUa9pRf/view?usp=sharing)
 
 ### 3. Generate Samples
 
